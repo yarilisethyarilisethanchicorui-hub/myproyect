@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escudo Rebotando - Colegio IED Porfirio Barba Jacob</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050814;
+            font-family: 'Outfit', sans-serif;
+            color: #ffffff;
+        }
+
+        #canvasContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* Glassmorphism Panel */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .glass-button {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: all 0.2s ease-in-out;
+        }
+        .glass-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        .glass-button:active {
+            transform: translateY(1px);
+        }
+
+        /* Custom Scrollbar for Controls */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Screen Shake Animation for Corner Hits */
+        @keyframes shake {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            20% { transform: translate(-12px, 8px) rotate(-1deg); }
+            40% { transform: translate(12px, -8px) rotate(1deg); }
+            60% { transform: translate(-8px, -4px) rotate(-0.5deg); }
+            80% { transform: translate(8px, 4px) rotate(0.5deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+        .screen-shake {
+            animation: shake 0.45s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        /* Toast Notifications */
+        .toast-enter {
+            transform: translateY(-100%) scale(0.9);
+            opacity: 0;
+        }
+        .toast-active {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .toast-exit {
+            transform: translateY(-100%) scale(0.9);
+            opacity: 0;
+            transition: all 0.3s ease-in;
+        }
+
+        /* Range Slider Styling */
+        input[type=range] {
+            accent-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="relative overflow-hidden select-none">
+
+    <!-- Canvas Layer Container -->
+    <div id="canvasContainer">
+        <canvas id="bgCanvas"></canvas>
+        <canvas id="simCanvas"></canvas>
+    </div>
+
+    <!-- HUD Overlay Top Bar -->
+    <div class="absolute top-4 left-4 right-4 z-20 flex justify-between items-center pointer-events-none">
+        <!-- Title Badge -->
+        <div class="glass-panel px-4 py-2.5 rounded-2xl flex items-center gap-3 pointer-events-auto border border-blue-500/30">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <i class="fa-solid fa-shield-halved text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="text-sm font-extrabold tracking-wide text-white leading-tight">COLEGIO IED</h1>
+                <p class="text-xs font-semibold text-blue-300 tracking-wider">PORFIRIO BARBA JACOB</p>
+            </div>
+        </div>
+
+        <!-- Live Stats Bar -->
+        <div class="glass-panel px-4 py-2 rounded-2xl flex items-center gap-4 text-xs font-semibold pointer-events-auto border border-white/10">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-[#ffb703] fa-arrows-spin text-amber-400"></i>
+                <span class="text-gray-300">Rebotes:</span>
+                <span id="statBounces" class="text-white font-mono font-bold text-sm">0</span>
+            </div>
+            <div class="h-4 w-[1px] bg-white/20"></div>
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-star text-yellow-400"></i>
+                <span class="text-gray-300">Esquinas:</span>
+                <span id="statCorners" class="text-yellow-300 font-mono font-bold text-sm">0</span>
+            </div>
+            <div class="h-4 w-[1px] bg-white/20 hidden sm:block"></div>
+            <div class="hidden sm:flex items-center gap-2">
+                <i class="fa-solid fa-bolt text-cyan-400"></i>
+                <span class="text-gray-300">Velocidad:</span>
+                <span id="statSpeed" class="text-cyan-300 font-mono font-bold text-sm">1x</span>
+            </div>
+            <div class="h-4 w-[1px] bg-white/20 hidden md:block"></div>
+            <div class="hidden md:flex items-center gap-2">
+                <i class="fa-solid fa-gauge text-emerald-400"></i>
+                <span id="statFPS" class="text-emerald-300 font-mono font-bold text-sm">60 FPS</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Control Bar Toggle (Mobile / Clean View) -->
+    <button id="toggleControlsBtn" onclick="toggleControlPanel()" class="absolute bottom-4 right-4 z-30 w-12 h-12 glass-panel rounded-2xl flex items-center justify-center text-white text-xl hover:bg-white/20 transition-all active:scale-95 shadow-xl">
+        <i id="toggleControlsIcon" class="fa-solid fa-sliders"></i>
+    </button>
+
+    <!-- Main Control Panel Overlay -->
+    <div id="controlPanel" class="absolute bottom-20 right-4 z-20 w-80 max-w-[calc(100vw-2rem)] glass-panel rounded-3xl p-5 custom-scrollbar max-h-[80vh] overflow-y-auto transition-all duration-300 border border-white/20 shadow-2xl">
+        <div class="flex justify-between items-center mb-4 pb-2 border-b border-white/10">
+            <h2 class="text-sm font-extrabold uppercase tracking-wider text-blue-300 flex items-center gap-2">
+                <i class="fa-solid fa-gamepad"></i> Panel de Control
+            </h2>
+            <button onclick="toggleControlPanel()" class="text-gray-400 hover:text-white text-xs p-1">
+                <i class="fa-solid fa-xmark text-base"></i>
+            </button>
+        </div>
+
+        <div class="space-y-4">
+            <!-- Speed Multiplier Control -->
+            <div>
+                <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-gray-300"><i class="fa-solid fa-gauge-high mr-1 text-cyan-400"></i> Velocidad Turbo:</span>
+                    <span id="speedVal" class="text-cyan-300 font-mono">1x</span>
+                </div>
+                <input type="range" id="speedSlider" min="1" max="10000" value="1" step="1" oninput="updateSpeedFromSlider(this.value)" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                <!-- Preset Speed Buttons -->
+                <div class="grid grid-cols-5 gap-1.5 mt-2">
+                    <button onclick="setSpeedPreset(1)" class="glass-button py-1 rounded-lg text-[10px] font-bold">1x</button>
+                    <button onclick="setSpeedPreset(10)" class="glass-button py-1 rounded-lg text-[10px] font-bold">10x</button>
+                    <button onclick="setSpeedPreset(100)" class="glass-button py-1 rounded-lg text-[10px] font-bold">100x</button>
+                    <button onclick="setSpeedPreset(1000)" class="glass-button py-1 rounded-lg text-[10px] font-bold text-amber-300">1Kx</button>
+                    <button onclick="setSpeedPreset(10000)" class="glass-button py-1 rounded-lg text-[10px] font-bold text-rose-400 animate-pulse">10Kx</button>
+                </div>
+            </div>
+
+            <!-- Shield Size Control -->
+            <div>
+                <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-gray-300"><i class="fa-solid fa-expand mr-1 text-purple-400"></i> Tamaño Escudo:</span>
+                    <span id="sizeVal" class="text-purple-300 font-mono">160px</span>
+                </div>
+                <input type="range" id="sizeSlider" min="60" max="320" value="160" step="10" oninput="updateShieldSize(this.value)" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Background Theme Selector -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-300 mb-1.5">
+                    <i class="fa-solid fa-palette mr-1 text-pink-400"></i> Fondo Interactivo:
+                </label>
+                <select id="themeSelect" onchange="changeTheme(this.value)" class="w-full bg-slate-800/90 text-white text-xs font-medium rounded-xl p-2.5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                    <option value="matrix">Matrix Digital Rain 🟢</option>
+                    <option value="space">Espacio & Nebulosa 🌌</option>
+                    <option value="grid">Cyberpunk Neon Grid ⚡</option>
+                    <option value="gradient">Arcoíris Gradiente Dynamic 🌈</option>
+                    <option value="dark">Negro Profundo OLED 🖤</option>
+                </select>
+            </div>
+
+            <!-- Visual Effects Toggles -->
+            <div class="space-y-2 pt-1">
+                <label class="flex items-center justify-between text-xs font-medium text-gray-300 cursor-pointer p-2 glass-button rounded-xl">
+                    <span><i class="fa-solid fa-wand-magic-sparkles text-amber-300 mr-2"></i> Estela / Traje Neón</span>
+                    <input type="checkbox" id="trailToggle" checked onchange="toggleTrails(this.checked)" class="w-4 h-4 rounded text-blue-600 focus:ring-0">
+                </label>
+                <label class="flex items-center justify-between text-xs font-medium text-gray-300 cursor-pointer p-2 glass-button rounded-xl">
+                    <span><i class="fa-solid fa-volume-high text-emerald-400 mr-2"></i> Sonido Sintetizador</span>
+                    <input type="checkbox" id="soundToggle" checked onchange="toggleSound(this.checked)" class="w-4 h-4 rounded text-blue-600 focus:ring-0">
+                </label>
+            </div>
+
+            <!-- Custom Shield & Background Uploads -->
+            <div class="grid grid-cols-2 gap-2 pt-1">
+                <label class="glass-button p-2 rounded-xl text-center text-xs font-semibold text-gray-200 cursor-pointer hover:border-blue-400/50 block">
+                    <i class="fa-solid fa-upload block text-base mb-1 text-blue-400"></i> Subir Escudo
+                    <input type="file" id="shieldUpload" accept="image/*" onchange="handleShieldUpload(event)" class="hidden">
+                </label>
+                <label class="glass-button p-2 rounded-xl text-center text-xs font-semibold text-gray-200 cursor-pointer hover:border-purple-400/50 block">
+                    <i class="fa-solid fa-image block text-base mb-1 text-purple-400"></i> Subir Fondo
+                    <input type="file" id="bgUpload" accept="image/*" onchange="handleBgUpload(event)" class="hidden">
+                </label>
+            </div>
+
+            <button id="resetShieldBtn" onclick="resetDefaultShield()" class="w-hidden hidden w-full glass-button py-2 rounded-xl text-xs font-semibold text-rose-300 hover:bg-rose-500/20">
+                <i class="fa-solid fa-rotate-left mr-1"></i> Restaurar Escudo Barba Jacob
+            </button>
+
+            <!-- Bottom Action Row: Achievements & Download HTML -->
+            <div class="pt-2 border-t border-white/10 space-y-2">
+                <button onclick="openAchievementsModal()" class="w-full glass-button py-2.5 rounded-xl text-xs font-bold text-yellow-300 flex items-center justify-center gap-2 hover:bg-yellow-400/10">
+                    <i class="fa-solid fa-trophy text-yellow-400 text-sm"></i> Logros y Desafíos
+                </button>
+                <button onclick="downloadHTML()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 active:scale-98 transition-all">
+                    <i class="fa-solid fa-download"></i> Descargar index.html
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Achievements Modal -->
+    <div id="achievementsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md hidden transition-all">
+        <div class="glass-panel w-11/12 max-w-md rounded-3xl p-6 border border-white/20 shadow-2xl relative animate-in fade-in zoom-in duration-200">
+            <button onclick="closeAchievementsModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white p-2">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 text-xl">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-extrabold text-white">Logros del Escudo</h3>
+                    <p class="text-xs text-gray-400">Colegio Porfirio Barba Jacob</p>
+                </div>
+            </div>
+
+            <!-- Achievements List -->
+            <div id="achievementsList" class="space-y-2.5 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                <!-- Dynamic insertion -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        // Global State & Configuration
+        const state = {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            shield: {
+                x: 100,
+                y: 100,
+                vx: 180, // px per sec base
+                vy: 140,
+                width: 160,
+                height: 192, // aspect ratio ~ 1:1.2
+                colorTint: '#0f5ba6',
+                hueRotation: 0,
+                customImg: null
+            },
+            speedMultiplier: 1,
+            subStepsMax: 200,
+            theme: 'matrix',
+            trailsEnabled: true,
+            soundEnabled: true,
+            stats: {
+                bounces: 0,
+                corners: 0,
+                startTime: Date.now()
+            },
+            trailHistory: [],
+            particles: [],
+            bgData: {
+                matrixCols: [],
+                stars: [],
+                gridOffset: 0,
+                gradientHue: 0,
+                customBgImg: null
+            },
+            achievements: {
+                first_bounce: { id: 'first_bounce', title: '¡Primer Rebote!', desc: 'El escudo tocó la pared por primera vez.', icon: 'fa-basketball', unlocked: false },
+                corner_hit: { id: 'corner_hit', title: '¡Esquina Perfecta!', desc: 'Golpeó exactamente en un rincón de la pantalla.', icon: 'fa-bullseye', unlocked: false },
+                speed_demon: { id: 'speed_demon', title: 'Modo Turbo 10,000x', desc: 'Activaste la velocidad máxima legendaria.', icon: 'fa-bolt-lightning', unlocked: false },
+                bounce_100: { id: 'bounce_100', title: 'Centenario (100 Rebotes)', desc: 'Alcanzaste los 100 rebotines.', icon: 'fa-award', unlocked: false },
+                bounce_1000: { id: 'bounce_1000', title: 'Maestro Rebotador (1000)', desc: 'Llegaste a 1,000 rebotes espectaculares.', icon: 'fa-crown', unlocked: false },
+                custom_shield: { id: 'custom_shield', title: 'Escudo Personalizado', desc: 'Cargaste tu propia imagen para rebotar.', icon: 'fa-image', unlocked: false }
+            }
+        };
+
+        // DOM Element Cache
+        const bgCanvas = document.getElementById('bgCanvas');
+        const bgCtx = bgCanvas.getContext('2d');
+        const simCanvas = document.getElementById('simCanvas');
+        const ctx = simCanvas.getContext('2d');
+
+        // Stats Cache
+        const statBounces = document.getElementById('statBounces');
+        const statCorners = document.getElementById('statCorners');
+        const statSpeed = document.getElementById('statSpeed');
+        const statFPS = document.getElementById('statFPS');
+        const speedVal = document.getElementById('speedVal');
+        const sizeVal = document.getElementById('sizeVal');
+        const resetShieldBtn = document.getElementById('resetShieldBtn');
+
+        // Web Audio API Synthesizer Context
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    audioCtx = new AudioContext();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playBounceSound(isCorner = false) {
+            if (!state.soundEnabled) return;
+            initAudio();
+            if (!audioCtx) return;
+
+            try {
+                if (isCorner) {
+                    // Epic Fanfare Chord for Corner Hit
+                    const frequencies = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                    frequencies.forEach((freq, idx) => {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, audioCtx.currentTime + idx * 0.05);
+                        
+                        gain.gain.setValueAtTime(0.2, audioCtx.currentTime + idx * 0.05);
+                        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + idx * 0.05 + 0.8);
+
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+
+                        osc.start(audioCtx.currentTime + idx * 0.05);
+                        osc.stop(audioCtx.currentTime + idx * 0.05 + 0.8);
+                    });
+                } else {
+                    // Quick Pluck Sound for Wall Bounce
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+
+                    // Pitch shifts dynamically based on speed or random pop
+                    const baseFreq = 220 + (Math.random() * 120);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.8, audioCtx.currentTime + 0.08);
+
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.09);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.1);
+                }
+            } catch (e) {
+                console.warn('Audio playback error:', e);
+            }
+        }
+
+        let defaultShieldImg = new Image();
+
+        function createDefaultShieldSVG() {
+            // Recreating the official shield of "Colegio IED Porfirio Barba Jacob"
+            const svgString = `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 360" width="300" height="360">
+                <defs>
+                    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+                        <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.5"/>
+                    </filter>
+                    <!-- Curved paths for perimeter text -->
+                    <path id="pathTop" d="M 45 65 Q 150 15 255 65" />
+                    <path id="pathRight" d="M 272 75 L 272 260" />
+                    <path id="pathBottom" d="M 255 320 Q 150 380 45 320" />
+                    <path id="pathLeft" d="M 28 260 L 28 75" />
+                </defs>
+
+                <!-- Outer Blue Shield Border Base -->
+                <path d="M 20 40 C 20 15, 40 10, 150 10 C 260 10, 280 15, 280 40 L 280 230 C 280 310, 150 350, 150 350 C 150 350, 20 310, 20 230 Z" 
+                      fill="#0e5ca8" stroke="#062d54" stroke-width="6" filter="url(#shadow)" />
+
+                <!-- Text along Outer Blue Shield Border -->
+                <text font-family="'Outfit', 'Arial Black', sans-serif" font-weight="900" font-size="25" fill="#ffffff" text-anchor="middle">
+                    <textPath href="#pathTop" startOffset="50%">COLEGIO</textPath>
+                </text>
+                <text font-family="'Outfit', 'Arial Black', sans-serif" font-weight="900" font-size="23" fill="#ffffff" text-anchor="middle">
+                    <textPath href="#pathRight" startOffset="42%">PORFIRIO</textPath>
+                </text>
+                <text font-family="'Outfit', 'Arial Black', sans-serif" font-weight="900" font-size="24" fill="#ffffff" text-anchor="middle">
+                    <textPath href="#pathBottom" startOffset="50%">BARBA</textPath>
+                </text>
+                <text font-family="'Outfit', 'Arial Black', sans-serif" font-weight="900" font-size="21" fill="#ffffff" text-anchor="middle">
+                    <textPath href="#pathLeft" startOffset="42%">JACOB IED</textPath>
+                </text>
+
+                <!-- Inner Red Shield Body -->
+                <path d="M 42 60 C 42 45, 55 40, 150 40 C 245 40, 258 45, 258 60 L 258 220 C 258 285, 150 320, 150 320 C 150 320, 42 285, 42 220 Z" 
+                      fill="#d92027" stroke="#000000" stroke-width="5" />
+
+                <!-- Central White Triangle -->
+                <polygon points="150,75 58,235 242,235" fill="#ffffff" stroke="#000000" stroke-width="5" />
+
+                <!-- Text inside Triangle Along Edges -->
+                <!-- Left Incline: CONOCIMIENTO -->
+                <g transform="translate(100, 155) rotate(-60)">
+                    <text x="0" y="0" font-family="'Outfit', sans-serif" font-weight="800" font-size="14" fill="#000000" text-anchor="middle">CONOCIMIENTO</text>
+                </g>
+                <!-- Right Incline: AUTOGESTION -->
+                <g transform="translate(200, 155) rotate(60)">
+                    <text x="0" y="0" font-family="'Outfit', sans-serif" font-weight="800" font-size="14" fill="#000000" text-anchor="middle">AUTOGESTION</text>
+                </g>
+                <!-- Bottom Edge: CONVIVENCIA -->
+                <text x="150" y="224" font-family="'Outfit', sans-serif" font-weight="800" font-size="15" fill="#000000" text-anchor="middle">CONVIVENCIA</text>
+
+                <!-- Torch Symbol in Middle of Triangle -->
+                <!-- Torch Base Cup & Handle -->
+                <path d="M 143 145 L 157 145 L 153 195 L 147 195 Z" fill="#0e5ca8" stroke="#000000" stroke-width="2.5" />
+                <path d="M 136 142 C 136 130, 164 130, 164 142 Z" fill="#0e5ca8" stroke="#000000" stroke-width="2.5" />
+
+                <!-- Flame Symbol (Red and Yellow Outer/Inner Flame) -->
+                <path d="M 150 95 C 130 120, 140 135, 150 135 C 160 135, 170 120, 150 95 Z" fill="#ff3b00" stroke="#000000" stroke-width="2" />
+                <path d="M 150 108 C 140 122, 145 133, 150 133 C 155 133, 160 122, 150 108 Z" fill="#ffe600" />
+            </svg>
+            `;
+
+            const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            defaultShieldImg.src = url;
+        }
+
+        function initBackgrounds() {
+            // Matrix rain initial columns
+            const cols = Math.floor(window.innerWidth / 18);
+            state.bgData.matrixCols = Array(cols).fill(0).map(() => Math.floor(Math.random() * -50));
+
+            // Space Stars
+            state.bgData.stars = [];
+            for (let i = 0; i < 150; i++) {
+                state.bgData.stars.push({
+                    x: Math.random() * window.innerWidth,
+                    y: Math.random() * window.innerHeight,
+                    size: Math.random() * 2 + 0.5,
+                    alpha: Math.random(),
+                    speed: Math.random() * 0.02 + 0.005
+                });
+            }
+        }
+
+        function drawBackground() {
+            const w = state.width;
+            const h = state.height;
+
+            switch (state.theme) {
+                case 'matrix':
+                    bgCtx.fillStyle = 'rgba(5, 12, 5, 0.25)';
+                    bgCtx.fillRect(0, 0, w, h);
+                    bgCtx.fillStyle = '#0f0';
+                    bgCtx.font = '14px monospace';
+
+                    const chars = '01COLEGIOBARBAJACOB10';
+                    state.bgData.matrixCols.forEach((y, i) => {
+                        const char = chars[Math.floor(Math.random() * chars.length)];
+                        const x = i * 18;
+                        bgCtx.fillText(char, x, y);
+                        if (y > h + Math.random() * 10000) {
+                            state.bgData.matrixCols[i] = 0;
+                        } else {
+                            state.bgData.matrixCols[i] = y + 18;
+                        }
+                    });
+                    break;
+
+                case 'space':
+                    // Nebula Gradient + Twinkling Stars
+                    const grad = bgCtx.createRadialGradient(w/2, h/2, 50, w/2, h/2, Math.max(w, h));
+                    grad.addColorStop(0, '#101432');
+                    grad.addColorStop(0.5, '#08091a');
+                    grad.addColorStop(1, '#020308');
+                    bgCtx.fillStyle = grad;
+                    bgCtx.fillRect(0, 0, w, h);
+
+                    // Stars
+                    bgCtx.fillStyle = '#ffffff';
+                    state.bgData.stars.forEach(s => {
+                        s.alpha += s.speed;
+                        if (s.alpha > 1 || s.alpha < 0.2) s.speed = -s.speed;
+                        bgCtx.globalAlpha = Math.abs(s.alpha);
+                        bgCtx.fillRect(s.x, s.y, s.size, s.size);
+                    });
+                    bgCtx.globalAlpha = 1;
+                    break;
+
+                case 'grid':
+                    // Cyberpunk Synthwave Grid
+                    bgCtx.fillStyle = '#090514';
+                    bgCtx.fillRect(0, 0, w, h);
+
+                    // Grid horizon line
+                    const horizonY = h * 0.55;
+                    state.bgData.gridOffset = (state.bgData.gridOffset + 1.5) % 40;
+
+                    bgCtx.strokeStyle = 'rgba(236, 72, 153, 0.4)';
+                    bgCtx.lineWidth = 1.5;
+
+                    // Vertical perspective lines
+                    for (let x = -w; x < w * 2; x += 60) {
+                        bgCtx.beginPath();
+                        bgCtx.moveTo(x, h);
+                        bgCtx.lineTo(w / 2 + (x - w / 2) * 0.1, horizonY);
+                        bgCtx.stroke();
+                    }
+
+                    // Horizontal moving lines
+                    for (let y = horizonY; y < h; y += 15) {
+                        const gy = y + (state.bgData.gridOffset * (y - horizonY) / 200);
+                        if (gy < h) {
+                            bgCtx.beginPath();
+                            bgCtx.moveTo(0, gy);
+                            bgCtx.lineTo(w, gy);
+                            bgCtx.stroke();
+                        }
+                    }
+
+                    // Sun on Horizon
+                    const sunGrad = bgCtx.createLinearGradient(0, horizonY - 80, 0, horizonY);
+                    sunGrad.addColorStop(0, '#facc15');
+                    sunGrad.addColorStop(1, '#ec4899');
+                    bgCtx.fillStyle = sunGrad;
+                    bgCtx.beginPath();
+                    bgCtx.arc(w / 2, horizonY, 70, Math.PI, 0);
+                    bgCtx.fill();
+                    break;
+
+                case 'gradient':
+                    state.bgData.gradientHue = (state.bgData.gradientHue + 0.5) % 360;
+                    const h1 = state.bgData.gradientHue;
+                    const h2 = (state.bgData.gradientHue + 120) % 360;
+                    const dynamicGrad = bgCtx.createLinearGradient(0, 0, w, h);
+                    dynamicGrad.addColorStop(0, `hsl(${h1}, 70%, 15%)`);
+                    dynamicGrad.addColorStop(1, `hsl(${h2}, 80%, 10%)`);
+                    bgCtx.fillStyle = dynamicGrad;
+                    bgCtx.fillRect(0, 0, w, h);
+                    break;
+
+                case 'dark':
+                    bgCtx.fillStyle = '#04060a';
+                    bgCtx.fillRect(0, 0, w, h);
+                    break;
+
+                case 'custom':
+                    if (state.bgData.customBgImg) {
+                        bgCtx.drawImage(state.bgData.customBgImg, 0, 0, w, h);
+                    } else {
+                        bgCtx.fillStyle = '#111827';
+                        bgCtx.fillRect(0, 0, w, h);
+                    }
+                    break;
+            }
+        }
+
+        function spawnParticles(x, y, isCorner = false) {
+            const count = isCorner ? 120 : 25;
+            const colors = isCorner 
+                ? ['#ff0055', '#00e5ff', '#ffbe0b', '#7000ff', '#ffffff'] 
+                : ['#3b82f6', '#ef4444', '#ffffff', '#f59e0b'];
+
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = isCorner ? Math.random() * 12 + 4 : Math.random() * 6 + 1.5;
+                state.particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: isCorner ? Math.random() * 6 + 3 : Math.random() * 4 + 2,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    life: 1.0,
+                    decay: Math.random() * 0.03 + 0.015
+                });
+            }
+        }
+
+        function updateAndDrawParticles() {
+            for (let i = state.particles.length - 1; i >= 0; i--) {
+                const p = state.particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+
+                if (p.life <= 0) {
+                    state.particles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function updatePhysics(dt) {
+            const speedMult = state.speedMultiplier;
+            const sw = state.shield.width;
+            const sh = state.shield.height;
+            const maxX = state.width - sw;
+            const maxY = state.height - sh;
+
+            if (maxX <= 0 || maxY <= 0) return;
+
+            // Compute total requested displacement for frame
+            const totalDx = state.shield.vx * dt * speedMult;
+            const totalDy = state.shield.vy * dt * speedMult;
+            const totalDist = Math.hypot(totalDx, totalDy);
+
+            // Sub-stepping resolution to prevent tunneling even at 10,000x speed
+            const maxStepSize = 8; // Max px movement per physics step
+            const steps = Math.min(state.subStepsMax, Math.max(1, Math.ceil(totalDist / maxStepSize)));
+            const stepDx = totalDx / steps;
+            const stepDy = totalDy / steps;
+
+            let frameBouncedX = false;
+            let frameBouncedY = false;
+            let cornerHitDetected = false;
+            let bouncePointX = state.shield.x;
+            let bouncePointY = state.shield.y;
+
+            for (let s = 0; s < steps; s++) {
+                state.shield.x += stepDx;
+                state.shield.y += stepDy;
+
+                let hitX = false;
+                let hitY = false;
+
+                // X Boundaries
+                if (state.shield.x <= 0) {
+                    state.shield.x = 0;
+                    state.shield.vx = Math.abs(state.shield.vx);
+                    hitX = true;
+                } else if (state.shield.x >= maxX) {
+                    state.shield.x = maxX;
+                    state.shield.vx = -Math.abs(state.shield.vx);
+                    hitX = true;
+                }
+
+                // Y Boundaries
+                if (state.shield.y <= 0) {
+                    state.shield.y = 0;
+                    state.shield.vy = Math.abs(state.shield.vy);
+                    hitY = true;
+                } else if (state.shield.y >= maxY) {
+                    state.shield.y = maxY;
+                    state.shield.vy = -Math.abs(state.shield.vy);
+                    hitY = true;
+                }
+
+                if (hitX || hitY) {
+                    bouncePointX = state.shield.x + sw / 2;
+                    bouncePointY = state.shield.y + sh / 2;
+
+                    if (hitX && hitY) {
+                        cornerHitDetected = true;
+                    }
+                    if (hitX) frameBouncedX = true;
+                    if (hitY) frameBouncedY = true;
+
+                    // Hue Rotation Shift on impact
+                    state.shield.hueRotation = (state.shield.hueRotation + 45) % 360;
+                }
+            }
+
+            // Handle Bounce & Corner Hit Events
+            if (cornerHitDetected) {
+                state.stats.corners++;
+                state.stats.bounces++;
+                statCorners.textContent = state.stats.corners;
+                statBounces.textContent = state.stats.bounces;
+
+                playBounceSound(true);
+                spawnParticles(bouncePointX, bouncePointY, true);
+                triggerScreenShake();
+                unlockAchievement('corner_hit');
+                unlockAchievement('first_bounce');
+            } else if (frameBouncedX || frameBouncedY) {
+                state.stats.bounces++;
+                statBounces.textContent = state.stats.bounces;
+
+                playBounceSound(false);
+                spawnParticles(bouncePointX, bouncePointY, false);
+                unlockAchievement('first_bounce');
+            }
+
+            // Check milestone achievements
+            if (state.stats.bounces >= 100) unlockAchievement('bounce_100');
+            if (state.stats.bounces >= 1000) unlockAchievement('bounce_1000');
+
+            // Record motion trail history
+            if (state.trailsEnabled) {
+                state.trailHistory.push({
+                    x: state.shield.x,
+                    y: state.shield.y,
+                    hue: state.shield.hueRotation,
+                    alpha: 0.6
+                });
+                if (state.trailHistory.length > 12) {
+                    state.trailHistory.shift();
+                }
+            }
+        }
+
+        function triggerScreenShake() {
+            document.body.classList.add('screen-shake');
+            setTimeout(() => {
+                document.body.classList.remove('screen-shake');
+            }, 450);
+        }
+
+        function drawShield() {
+            const sw = state.shield.width;
+            const sh = state.shield.height;
+            const imgToDraw = state.shield.customImg || defaultShieldImg;
+
+            // Draw Trails
+            if (state.trailsEnabled && state.trailHistory.length > 0) {
+                for (let i = 0; i < state.trailHistory.length; i++) {
+                    const t = state.trailHistory[i];
+                    ctx.save();
+                    ctx.globalAlpha = (i / state.trailHistory.length) * 0.35;
+                    ctx.filter = `hue-rotate(${t.hue}deg) blur(2px)`;
+                    ctx.drawImage(imgToDraw, t.x, t.y, sw, sh);
+                    ctx.restore();
+                }
+            }
+
+            // Draw Main Shield
+            ctx.save();
+            if (!state.shield.customImg) {
+                ctx.filter = `hue-rotate(${state.shield.hueRotation}deg) drop-shadow(0px 8px 16px rgba(0,0,0,0.6))`;
+            } else {
+                ctx.filter = `drop-shadow(0px 8px 16px rgba(0,0,0,0.6))`;
+            }
+            ctx.drawImage(imgToDraw, state.shield.x, state.shield.y, sw, sh);
+            ctx.restore();
+        }
+
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fpsTimer = performance.now();
+
+        function animate(now) {
+            const dt = Math.min(0.05, (now - lastTime) / 1000); // Delta time capped at 50ms
+            lastTime = now;
+
+            // FPS Counter
+            frameCount++;
+            if (now - fpsTimer >= 1000) {
+                statFPS.textContent = `${frameCount} FPS`;
+                frameCount = 0;
+                fpsTimer = now;
+            }
+
+            // Clear canvases
+            ctx.clearRect(0, 0, state.width, state.height);
+            drawBackground();
+
+            // Physics & Rendering
+            updatePhysics(dt);
+            updateAndDrawParticles();
+            drawShield();
+
+            requestAnimationFrame(animate);
+        }
+
+        function updateSpeedFromSlider(val) {
+            state.speedMultiplier = parseInt(val, 10);
+            speedVal.textContent = `${state.speedMultiplier}x`;
+            statSpeed.textContent = `${state.speedMultiplier}x`;
+            if (state.speedMultiplier >= 10000) {
+                unlockAchievement('speed_demon');
+            }
+        }
+
+        function setSpeedPreset(spd) {
+            document.getElementById('speedSlider').value = spd;
+            updateSpeedFromSlider(spd);
+        }
+
+        function updateShieldSize(val) {
+            const newW = parseInt(val, 10);
+            const newH = Math.round(newW * 1.2); // Maintain aspect ratio
+            state.shield.width = newW;
+            state.shield.height = newH;
+            sizeVal.textContent = `${newW}px`;
+        }
+
+        function changeTheme(themeKey) {
+            state.theme = themeKey;
+        }
+
+        function toggleTrails(enabled) {
+            state.trailsEnabled = enabled;
+            if (!enabled) state.trailHistory = [];
+        }
+
+        function toggleSound(enabled) {
+            state.soundEnabled = enabled;
+        }
+
+        function toggleControlPanel() {
+            const panel = document.getElementById('controlPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        function handleShieldUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const img = new Image();
+                img.onload = function() {
+                    state.shield.customImg = img;
+                    resetShieldBtn.classList.remove('hidden');
+                    unlockAchievement('custom_shield');
+                    showToast('¡Escudo Personalizado Cargado!', 'Tu imagen ahora es el escudo rebotador.', 'fa-image');
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function resetDefaultShield() {
+            state.shield.customImg = null;
+            resetShieldBtn.classList.add('hidden');
+            showToast('Escudo Restaurado', 'Regresaste al escudo oficial del Colegio Barba Jacob.', 'fa-rotate-left');
+        }
+
+        function handleBgUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const img = new Image();
+                img.onload = function() {
+                    state.bgData.customBgImg = img;
+                    state.theme = 'custom';
+                    document.getElementById('themeSelect').value = 'custom';
+                    showToast('Fondo Personalizado', 'Se ha establecido tu imagen de fondo.', 'fa-palette');
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function unlockAchievement(id) {
+            const ach = state.achievements[id];
+            if (ach && !ach.unlocked) {
+                ach.unlocked = true;
+                showToast(`¡Logro Desbloqueado: ${ach.title}!`, ach.desc, ach.icon, true);
+                renderAchievementsList();
+            }
+        }
+
+        function showToast(title, desc, icon = 'fa-trophy', isGold = false) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `glass-panel px-4 py-3 rounded-2xl flex items-center gap-3 border ${isGold ? 'border-amber-400/50 bg-amber-950/40' : 'border-blue-400/40'} shadow-2xl toast-enter pointer-events-auto`;
+            
+            toast.innerHTML = `
+                <div class="w-9 h-9 rounded-xl ${isGold ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'} flex items-center justify-center text-lg">
+                    <i class="fa-solid ${icon}"></i>
+                </div>
+                <div>
+                    <h4 class="text-xs font-extrabold ${isGold ? 'text-amber-200' : 'text-white'} leading-tight">${title}</h4>
+                    <p class="text-[11px] text-gray-300">${desc}</p>
+                </div>
+            `;
+
+            container.appendChild(toast);
+            requestAnimationFrame(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-active');
+            });
+
+            setTimeout(() => {
+                toast.classList.remove('toast-active');
+                toast.classList.add('toast-exit');
+                setTimeout(() => toast.remove(), 350);
+            }, 3500);
+        }
+
+        function openAchievementsModal() {
+            renderAchievementsList();
+            document.getElementById('achievementsModal').classList.remove('hidden');
+        }
+
+        function closeAchievementsModal() {
+            document.getElementById('achievementsModal').classList.add('hidden');
+        }
+
+        function renderAchievementsList() {
+            const list = document.getElementById('achievementsList');
+            list.innerHTML = '';
+
+            Object.values(state.achievements).forEach(ach => {
+                const item = document.createElement('div');
+                item.className = `p-3 rounded-2xl border flex items-center gap-3 ${ach.unlocked ? 'bg-white/10 border-amber-400/40' : 'bg-white/5 border-white/5 opacity-50'}`;
+                item.innerHTML = `
+                    <div class="w-10 h-10 rounded-xl ${ach.unlocked ? 'bg-amber-400/20 text-amber-300' : 'bg-gray-700/30 text-gray-500'} flex items-center justify-center text-lg">
+                        <i class="fa-solid ${ach.icon}"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-xs font-bold ${ach.unlocked ? 'text-white' : 'text-gray-400'}">${ach.title}</h4>
+                            ${ach.unlocked ? '<span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">¡Logrado!</span>' : '<span class="text-[10px] text-gray-500">Bloqueado</span>'}
+                        </div>
+                        <p class="text-[11px] text-gray-400 leading-tight mt-0.5">${ach.desc}</p>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function downloadHTML() {
+            const htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'escudo_barba_jacob_rebotando.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast('¡Descarga Iniciada!', 'Se guardó el archivo index.html completo e independiente.', 'fa-circle-check');
+        }
+
+        function handleResize() {
+            state.width = window.innerWidth;
+            state.height = window.innerHeight;
+
+            bgCanvas.width = state.width;
+            bgCanvas.height = state.height;
+            simCanvas.width = state.width;
+            simCanvas.height = state.height;
+
+            // Keep shield inside canvas bounds after resize
+            state.shield.x = Math.min(state.shield.x, Math.max(0, state.width - state.shield.width));
+            state.shield.y = Math.min(state.shield.y, Math.max(0, state.height - state.shield.height));
+
+            initBackgrounds();
+        }
+
+        window.onload = function() {
+            createDefaultShieldSVG();
+            handleResize();
+            window.addEventListener('resize', handleResize);
+
+            // User gesture audio unlock listener
+            window.addEventListener('click', () => initAudio(), { once: true });
+            window.addEventListener('keydown', () => initAudio(), { once: true });
+
+            requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>
